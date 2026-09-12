@@ -38,6 +38,10 @@
 #include <pthread.h>
 
 #include <resolv.h>
+
+#if defined(__APPLE__)
+#include <mach/mach_time.h>
+#endif
 #include <netdb.h>
 
 #include <time.h>
@@ -152,11 +156,19 @@ static pthread_rwlock_unlock_pfn_t g_sys_pthread_rwlock_unlock_func
 
 static inline unsigned long long get_tick_count()
 {
+#if defined(__x86_64__) || defined(__i386__)
 	uint32_t lo, hi;
 	__asm__ __volatile__ (
 			"rdtscp" : "=a"(lo), "=d"(hi)
 			);
 	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
+#elif defined(__APPLE__)
+	return mach_absolute_time();
+#else
+	struct timespec ts;
+	clock_gettime( CLOCK_MONOTONIC, &ts );
+	return ((unsigned long long)ts.tv_sec) * 1000000000ULL + ts.tv_nsec;
+#endif
 }
 
 struct rpchook_connagent_head_t
@@ -938,7 +950,7 @@ int gethostbyname_r(const char* __restrict name,
                     int* __restrict __h_errnop) {
   HOOK_SYS_FUNC(gethostbyname_r);
 
-#if defined( __APPLE__ ) || defined( __FreeBSD__ )
+#if 0 && ( defined( __APPLE__ ) || defined( __FreeBSD__ ) )
 	return g_sys_gethostbyname_r_func( name );
 #else
   if (!co_is_enable_sys_hook()) {

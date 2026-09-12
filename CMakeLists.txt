@@ -6,9 +6,6 @@ set(LIBCO_VERSION 0.5)
 
 set(CMAKE_MACOSX_RPATH 0)
 
-# Set cflags (same as the original Makefile)
-set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} -g -fno-strict-aliasing -O2 -Wall -export-dynamic -Wall -pipe -D_GNU_SOURCE -D_REENTRANT -fPIC -Wno-deprecated -m64)
-
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()

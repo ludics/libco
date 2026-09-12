@@ -31,7 +31,7 @@ AR  ?= ar
 UNAME := $(shell uname -s)
 
 CXXFLAGS += -g -O2 -Wall -pipe -D_GNU_SOURCE -D_REENTRANT -fPIC \
-            -Wno-deprecated -m64 -export-dynamic -I$(SRC_DIR)
+            -Wno-deprecated -I$(SRC_DIR)
 
 ifeq ($(UNAME),Darwin)
   SO_EXT    := dylib
