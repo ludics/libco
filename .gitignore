@@ -32,3 +32,20 @@ README.md
 *.exe
 *.out
 *.app
+
+# Refactored build layout
+/build/
+
+# clangd
+.cache/
+compile_commands.json
+
+# Refactored build layout
+/build/
+
+# clangd
+.cache/
+compile_commands.json
+
+# macOS debug symbols
+*.dSYM

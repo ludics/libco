@@ -129,4 +129,52 @@ int coctx_init(coctx_t* ctx) {
   return 0;
 }
 
+#elif defined(__aarch64__)
+// regs layout (see coctx_swap.S):
+//   regs[0..9]  : x19..x28
+//   regs[10]    : x29 (fp)
+//   regs[11]    : x30 (lr)
+//   regs[12]    : sp
+//   regs[13]    : unused
+enum {
+  kA64_X19 = 0,
+  kA64_X20 = 1,
+  kA64_X21 = 2,
+  kA64_X22 = 3,
+  kA64_X23 = 4,
+  kA64_X24 = 5,
+  kA64_X25 = 6,
+  kA64_X26 = 7,
+  kA64_X27 = 8,
+  kA64_X28 = 9,
+  kA64_FP = 10,
+  kA64_LR = 11,
+  kA64_SP = 12,
+};
+
+extern "C" {
+extern void coctx_trampoline(void) asm("coctx_trampoline");
+}
+
+int coctx_init(coctx_t* ctx) {
+  memset(ctx, 0, sizeof(*ctx));
+  return 0;
+}
+
+int coctx_make(coctx_t* ctx, coctx_pfn_t pfn, const void* s, const void* s1) {
+  memset(ctx->regs, 0, sizeof(ctx->regs));
+
+  char* sp = ctx->ss_sp + ctx->ss_size;
+  sp = (char*)((unsigned long)sp & -16LL);
+
+  ctx->regs[kA64_SP] = sp - 16;
+
+  ctx->regs[kA64_X19] = (void*)s;
+  ctx->regs[kA64_X20] = (void*)s1;
+  ctx->regs[kA64_X21] = (void*)pfn;
+  ctx->regs[kA64_LR] = (void*)coctx_trampoline;
+
+  return 0;
+}
+
 #endif

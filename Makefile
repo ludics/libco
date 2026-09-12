@@ -1,84 +1,105 @@
+# libco Makefile (refactored)
 #
-# Tencent is pleased to support the open source community by making Libco available.
-# 
-# Copyright (C) 2014 THL A29 Limited, a Tencent company. All rights reserved.
-# 
-# Licensed under the Apache License, Version 2.0 (the "License"); 
-# you may not use this file except in compliance with the License. 
-# You may obtain a copy of the License at
-# 
-#   http://www.apache.org/licenses/LICENSE-2.0
-# 
-# Unless required by applicable law or agreed to in writing, 
-# software distributed under the License is distributed on an "AS IS" BASIS, 
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
-# See the License for the specific language governing permissions and 
-# limitations under the License.
+# 目录布局：
+#   src/      协程库源码与头文件
+#   example/  使用示例
+#   bench/    基准测试
+#   build/    全部构建产物（已 gitignore）
+#     ├── obj/    目标文件
+#     ├── lib/    libcolib.a / libcolib.{so,dylib}
+#     └── bin/    example_* 与 bench_* 可执行文件
 #
+# 常用命令：
+#   make            # 构建全部（库 + 示例 + 基准）
+#   make lib        # 仅构建静态库与动态库
+#   make examples   # 仅构建示例
+#   make bench      # 仅构建基准
+#   make clean      # 清理 build/
 
+SRC_DIR     := src
+EXAMPLE_DIR := example
+BENCH_DIR   := bench
+BUILD_DIR   := build
+OBJ_DIR     := $(BUILD_DIR)/obj
+LIB_DIR     := $(BUILD_DIR)/lib
+BIN_DIR     := $(BUILD_DIR)/bin
 
-COMM_MAKE = 1
-COMM_ECHO = 1
-version=0.5
-v=debug
-include co.mk
-
-########## options ##########
-CFLAGS += -g -fno-strict-aliasing -O2 -Wall -export-dynamic \
-	-Wall -pipe  -D_GNU_SOURCE -D_REENTRANT -fPIC -Wno-deprecated -m64
+CXX ?= c++
+CC  ?= cc
+AR  ?= ar
 
 UNAME := $(shell uname -s)
 
-ifeq ($(UNAME), FreeBSD)
-LINKS += -g -L./lib -lcolib -lpthread
+CXXFLAGS += -g -O2 -Wall -pipe -D_GNU_SOURCE -D_REENTRANT -fPIC \
+            -Wno-deprecated -I$(SRC_DIR)
+
+ifeq ($(UNAME),Darwin)
+  SO_EXT    := dylib
+  SO_LDFLAGS := -dynamiclib
 else
-LINKS += -g -L./lib -lcolib -lpthread -ldl
+  SO_EXT    := so
+  SO_LDFLAGS := -shared
+  LDLIBS    += -ldl
 endif
+LDLIBS += -lpthread
 
-COLIB_OBJS=co_epoll.o co_routine.o co_hook_sys_call.o coctx_swap.o coctx.o co_comm.o
-#co_swapcontext.o
+# ---------------------------------------------------------------------------
+# 库源文件（与上游编译顺序一致）
+LIB_SRCS := $(SRC_DIR)/co_epoll.cpp \
+            $(SRC_DIR)/co_routine.cpp \
+            $(SRC_DIR)/co_hook_sys_call.cpp \
+            $(SRC_DIR)/coctx_swap.S \
+            $(SRC_DIR)/coctx.cpp \
+            $(SRC_DIR)/co_comm.cpp
 
-PROGS = colib example_poll example_echosvr example_echocli example_thread  example_cond example_specific example_copystack example_closure example_setenv
+LIB_OBJS   := $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(filter %.cpp,$(LIB_SRCS))) \
+              $(patsubst $(SRC_DIR)/%.S,$(OBJ_DIR)/%.o,$(filter %.S,$(LIB_SRCS)))
+LIB_STATIC := $(LIB_DIR)/libcolib.a
+LIB_SHARED := $(LIB_DIR)/libcolib.$(SO_EXT)
 
-all:$(PROGS)
+# 示例与基准
+EXAMPLE_SRCS := $(wildcard $(EXAMPLE_DIR)/*.cpp)
+EXAMPLE_BINS := $(patsubst $(EXAMPLE_DIR)/%.cpp,$(BIN_DIR)/%,$(EXAMPLE_SRCS))
 
-colib:libcolib.a libcolib.so
+BENCH_SRCS := $(wildcard $(BENCH_DIR)/*.cpp)
+BENCH_BINS := $(patsubst $(BENCH_DIR)/%.cpp,$(BIN_DIR)/%,$(BENCH_SRCS))
 
-libcolib.a: $(COLIB_OBJS)
-	$(ARSTATICLIB) 
-libcolib.so: $(COLIB_OBJS)
-	$(BUILDSHARELIB) 
+.PHONY: all lib examples bench clean help
 
-example_echosvr:example_echosvr.o
-	$(BUILDEXE) 
-example_echocli:example_echocli.o
-	$(BUILDEXE) 
-example_thread:example_thread.o
-	$(BUILDEXE) 
-example_poll:example_poll.o
-	$(BUILDEXE) 
-example_exit:example_exit.o
-	$(BUILDEXE) 
-example_cond:example_cond.o
-	$(BUILDEXE)
-example_specific:example_specific.o
-	$(BUILDEXE)
-example_copystack:example_copystack.o
-	$(BUILDEXE)
-example_setenv:example_setenv.o
-	$(BUILDEXE)
-example_closure:example_closure.o
-	$(BUILDEXE)
+all: lib examples bench
 
-dist: clean libco-$(version).src.tar.gz
+lib: $(LIB_STATIC) $(LIB_SHARED)
 
-libco-$(version).src.tar.gz:
-	@find . -type f | grep -v CVS | grep -v .svn | sed s:^./:libco-$(version)/: > MANIFEST
-	@(cd ..; ln -s libco_pub libco-$(version))
-	(cd ..; tar cvf - `cat libco_pub/MANIFEST` | gzip > libco_pub/libco-$(version).src.tar.gz)
-	@(cd ..; rm libco-$(version))
+examples: $(EXAMPLE_BINS)
+
+bench: $(BENCH_BINS)
+
+$(LIB_STATIC): $(LIB_OBJS) | $(LIB_DIR)
+	$(AR) -rc $@ $^
+
+$(LIB_SHARED): $(LIB_OBJS) | $(LIB_DIR)
+	$(CXX) $(SO_LDFLAGS) -o $@ $^
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.S | $(OBJ_DIR)
+	$(CC) $(CXXFLAGS) -c $< -o $@
+
+$(EXAMPLE_BINS): $(BIN_DIR)/%: $(EXAMPLE_DIR)/%.cpp $(LIB_STATIC) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) $< $(LIB_STATIC) $(LDLIBS) -o $@
+
+$(BENCH_BINS): $(BIN_DIR)/%: $(BENCH_DIR)/%.cpp $(LIB_STATIC) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) $< $(LIB_STATIC) $(LDLIBS) -o $@
+
+$(OBJ_DIR) $(LIB_DIR) $(BIN_DIR):
+	mkdir -p $@
 
 clean:
-	$(CLEAN) *.o $(PROGS)
-	rm -fr MANIFEST lib solib libco-$(version).src.tar.gz libco-$(version)
+	rm -rf $(BUILD_DIR)
 
+help:
+	@echo "Targets: all | lib | examples | bench | clean"
+	@echo "  lib      -> $(LIB_STATIC) $(LIB_SHARED)"
+	@echo "  examples -> $(EXAMPLE_BINS)"
+	@echo "  bench    -> $(BENCH_BINS)"
