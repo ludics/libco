@@ -1,5 +1,28 @@
 Libco
 ===========
+
+> **目录结构（本仓库重构版）**
+>
+> ```
+> libco/
+> ├── src/          # 协程库源码与头文件（co_routine、coctx、co_epoll、hook 等）
+> ├── example/      # 使用示例（example_echosvr、example_thread 等）
+> ├── bench/        # 基准测试（bench_swap：协程切换开销实测）
+> ├── Makefile      # make 构建（产物全部输出到 build/，make / make lib / make clean）
+> ├── CMakeLists.txt# cmake 构建（cmake -B build-cmake）
+> └── build/        # 构建产物（gitignore）：obj/ 目标文件、lib/ 库、bin/ 可执行文件
+> ```
+>
+> 构建与测试：
+> ```bash
+> make -j8                                  # 构建全部
+> ./build/bin/bench_swap                    # 协程切换基准
+> ./build/bin/example_echosvr 127.0.0.1 28960 1 1 &
+> ./build/bin/example_echocli 127.0.0.1 28960 1 1
+> ```
+>
+> 本仓库在原版基础上补充了 aarch64/arm64 支持（macOS Apple Silicon 与 Linux aarch64 均可原生编译运行），x86 路径保持原版不变。
+
 Libco is a c/c++ coroutine library that is widely used in WeChat services. It has been running on tens of thousands of machines since 2013.
 
 By linking with libco, you can easily transform synchronous back-end service into coroutine service. The coroutine service will provide out-standing concurrency compare to multi-thread approach. With the system hook, You can easily coding in synchronous way but asynchronous executed.
